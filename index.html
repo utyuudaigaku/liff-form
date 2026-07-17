@@ -122,11 +122,11 @@
       document.getElementById('status-container').classList.remove('hidden');
 
       // GASへのPOSTリクエスト
-      fetch(GAS_WEB_APP_URL, {
+       fetch(GAS_WEB_APP_URL, {
         method: 'POST',
-        mode: 'cors',
+        mode: 'cors', // modeはcorsのままでOK
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'text/plain' // application/json から text/plain に変更
         },
         body: JSON.stringify({
           userId: lineUserId,
