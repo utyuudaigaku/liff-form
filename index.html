@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>支払い申請フォーム</title>
+  <!-- Tailwind CSSでスマホ向けの綺麗なUIを構築 -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- LINE LIFF SDK -->
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col justify-between text-gray-800">
+
+  <div class="max-w-md w-full mx-auto px-4 py-8">
+    <!-- フォーム画面 -->
+    <div id="form-container" class="bg-white p-6 rounded-lg shadow-md">
+      <h2 class="text-2xl font-bold mb-6 text-center text-indigo-700">お支払い先申請フォーム</h2>
+      
+      <form id="liff-form" onsubmit="submitForm(event)">
+        <!-- 1. 申請者氏名 -->
+        <div class="mb-4">
+          <label class="block text-sm font-semibold mb-2" for="applicant-name">申請者氏名 <span class="text-red-500">*</span></label>
+          <select id="applicant-name" class="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none" required>
+            <option value="">-- 選択してください --</option>
+            <!-- メンバー20名の名前をここに直接定義 -->
+            <option value="山田太郎">山田太郎</option>
+            <option value="佐藤花子">佐藤花子</option>
+            <option value="鈴木一郎">鈴木一郎</option>
+            <!-- 他のメンバーを適宜追加 -->
+          </select>
+        </div>
+
+        <!-- 2. 支払い先のお名前 -->
+        <div class="mb-4">
+          <label class="block text-sm font-semibold mb-2" for="payee-name">支払い先のお名前 <span class="text-red-500">*</span></label>
+          <select id="payee-name" class="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none" required>
+            <option value="">-- 選択してください --</option>
+            <option value="山田太郎">山田太郎</option>
+            <option value="佐藤花子">佐藤花子</option>
+            <option value="鈴木一郎">鈴木一郎</option>
+            <!-- 他のメンバーを適宜追加 -->
+          </select>
+        </div>
+
+        <!-- 3. お支払い方法 -->
+        <div class="mb-6">
+          <label class="block text-sm font-semibold mb-2" for="payment-method">お支払い方法 <span class="text-red-500">*</span></label>
+          <select id="payment-method" class="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none" required>
+            <option value="">-- 選択してください --</option>
+            <option value="PayPay ID">PayPay ID</option>
+            <option value="銀行口座振り込み">銀行口座振り込み</option>
+          </select>
+        </div>
+
+        <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded transition-colors duration-200">
+          送信する
+        </button>
+      </form>
+    </div>
+
+    <!-- 送信中・結果表示画面（初期状態は非表示） -->
+    <div id="status-container" class="hidden bg-white p-6 rounded-lg shadow-md text-center">
+      <!-- ローディングアイコン -->
+      <div id="spinner" class="animate-spin inline-block w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full mb-4"></div>
+      
+      <!-- メッセージ領域 -->
+      <p id="status-message" class="text-lg font-medium mb-8">送信中です。しばらくお待ちください...</p>
+      
+      <!-- 閉じるボタン（初期状態は非表示） -->
+      <button id="close-btn" onclick="closeLiff()" class="hidden mx-auto bg-gray-800 hover:bg-gray-900 text-white font-bold py-2 px-8 rounded transition-colors duration-200">
+        閉じる
+      </button>
+    </div>
+  </div>
+
+  <script>
+    // ※【重要設定】デプロイしたGASのWeb AppのURL
+    const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwUzCkZUs_OLH0uRlNvGVPiWHzStj7PA8A-manHVDrzhX7QFLl5pf4dBWBd_Z4aHlqj/exec";
+    // ※【重要設定】LINE Developerで作成したLIFF ID
+    const LIFF_ID = "2010733574-ZUB1nVjS";
+
+    let lineUserId = "";
+
+    // LIFFの初期化
+    window.addEventListener('load', () => {
+      liff.init({ liffId: LIFF_ID })
+        .then(() => {
+          if (!liff.isLoggedIn()) {
+            liff.login();
+          } else {
+            liff.getProfile()
+              .then(profile => {
+                lineUserId = profile.userId;
+              })
+              .catch(err => console.error("プロファイル取得失敗:", err));
+          }
+        })
+        .catch(err => console.error("LIFF初期化失敗:", err));
+    });
+
+    // フォーム送信
+    function submitForm(event) {
+      event.preventDefault();
+
+      const applicantName = document.getElementById('applicant-name').value;
+      const payeeName = document.getElementById('payee-name').value;
+      const paymentMethod = document.getElementById('payment-method').value;
+
+      // 未入力バリデーション（ブラウザ標準のrequiredに加え安全策として実施）
+      if (!applicantName || !payeeName || !paymentMethod) {
+        alert("未入力の項目があります。すべての項目を入力してください。");
+        return;
+      }
+
+      if (!lineUserId) {
+        alert("LINEのユーザー情報が取得できていません。アプリを再起動してください。");
+        return;
+      }
+
+      // 送信中画面への遷移
+      document.getElementById('form-container').classList.add('hidden');
+      document.getElementById('status-container').classList.remove('hidden');
+
+      // GASへのPOSTリクエスト
+      fetch(GAS_WEB_APP_URL, {
+        method: 'POST',
+        mode: 'cors',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          userId: lineUserId,
+          applicantName: applicantName,
+          payeeName: payeeName,
+          paymentMethod: paymentMethod
+        })
+      })
+      .then(response => response.json())
+      .then(data => {
+        // スピナーを非表示
+        document.getElementById('spinner').classList.add('hidden');
+        document.getElementById('close-btn').classList.remove('hidden');
+
+        if (data.status === 'success') {
+          document.getElementById('status-message').innerHTML = "申請が完了しました。<br>しばらくお待ちください。";
+          document.getElementById('status-message').classList.add('text-green-600');
+        } else {
+          // 登録がない場合
+          document.getElementById('status-message').innerHTML = `ご指定した${paymentMethod}はご登録がありません。`;
+          document.getElementById('status-message').classList.add('text-red-600');
+        }
+      })
+      .catch(error => {
+        console.error("通信エラー:", error);
+        document.getElementById('spinner').classList.add('hidden');
+        document.getElementById('close-btn').classList.remove('hidden');
+        document.getElementById('status-message').innerText = "エラーが発生しました。通信環境を確認し再度お試しください。";
+        document.getElementById('status-message').classList.add('text-red-600');
+      });
+    }
+
+    // LIFF画面を閉じる
+    function closeLiff() {
+      liff.closeWindow();
+    }
+  </script>
+</body>
+</html>
