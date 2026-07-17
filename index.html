@@ -146,7 +146,7 @@
           document.getElementById('status-message').classList.add('text-green-600');
         } else {
           // 登録がない場合
-          document.getElementById('status-message').innerHTML = `ご指定した${paymentMethod}のご登録がありません。`;
+          document.getElementById('status-message').innerHTML = `ご指定した${paymentMethod}の<br>ご登録がありません。`;
           document.getElementById('status-message').classList.add('text-red-600');
         }
       })
