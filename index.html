@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>支払い申請フォーム</title>
+  <title>お支払い情報申請フォーム</title>
   <!-- Tailwind CSSでスマホ向けの綺麗なUIを構築 -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- LINE LIFF SDK -->
@@ -32,7 +32,7 @@
 
         <!-- 2. 支払い先のお名前 -->
         <div class="mb-4">
-          <label class="block text-sm font-semibold mb-2" for="payee-name">支払い先のお名前 <span class="text-red-500">*</span></label>
+          <label class="block text-sm font-semibold mb-2" for="payee-name">お支払い先のお名前 <span class="text-red-500">*</span></label>
           <select id="payee-name" class="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none" required>
             <option value="">-- 選択してください --</option>
             <option value="山田太郎">山田太郎</option>
@@ -48,7 +48,7 @@
           <select id="payment-method" class="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none" required>
             <option value="">-- 選択してください --</option>
             <option value="PayPay ID">PayPay ID</option>
-            <option value="銀行口座振り込み">銀行口座振り込み</option>
+            <option value="銀行口座">銀行口座振り込み</option>
           </select>
         </div>
 
@@ -146,7 +146,7 @@
           document.getElementById('status-message').classList.add('text-green-600');
         } else {
           // 登録がない場合
-          document.getElementById('status-message').innerHTML = `ご指定した${paymentMethod}はご登録がありません。`;
+          document.getElementById('status-message').innerHTML = `ご指定した${paymentMethod}のご登録がありません。`;
           document.getElementById('status-message').classList.add('text-red-600');
         }
       })
