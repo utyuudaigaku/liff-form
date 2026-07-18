@@ -142,8 +142,22 @@
         document.getElementById('close-btn').classList.remove('hidden');
 
         if (data.status === 'success') {
+          // ①【画面切替】まずスマホ画面を「申請完了」に変更する
           document.getElementById('status-message').innerHTML = "申請が完了しました。<br>しばらくお待ちください。";
           document.getElementById('status-message').classList.add('text-green-600');
+
+          // ②【追加：LINE送信依頼】完了画面に切り替わった「後」で、裏からGASにLINEを送信させる
+          fetch(GAS_WEB_APP_URL, {
+            method: 'POST',
+            mode: 'cors',
+            headers: {
+              'Content-Type': 'text/plain'
+            },
+            body: JSON.stringify({
+              action: 'sendReceiptMessage', // ★【指示】LINE送信だけを実行してね
+              userId: lineUserId
+            })
+          });
         } else {
           // 登録がない場合
           document.getElementById('status-message').innerHTML = `ご指定した${paymentMethod}の<br>ご登録がありません。`;
