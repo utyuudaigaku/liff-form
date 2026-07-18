@@ -11,6 +11,22 @@
 </head>
 <body class="bg-gray-50 min-h-screen flex flex-col justify-between text-gray-800">
 
+    <!-- 【追加】カスタムモーダル（ドメイン名が表示されないアラート） -->
+  <div id="custom-alert" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50 hidden">
+    <div class="bg-white rounded-lg shadow-lg max-w-sm w-full p-6 text-center">
+      <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-indigo-100 text-indigo-600 mb-4">
+        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+        </svg>
+      </div>
+      <p id="alert-text" class="text-gray-700 font-medium mb-6 leading-relaxed whitespace-pre-line"></p>
+      <button onclick="closeAlert()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-4 rounded transition-colors duration-200">
+        確認
+      </button>
+    </div>
+  </div>
+
+
   <div class="max-w-md w-full mx-auto px-4 py-8">
     
     <!-- 全体初期ローディング表示 -->
@@ -143,6 +159,18 @@
         .catch(err => console.error("LIFF初期化失敗:", err));
     });
 
+        // 【追加】カスタムアラートを表示する制御用の関数
+    function showAlert(message) {
+      document.getElementById('alert-text').innerText = message;
+      document.getElementById('custom-alert').classList.remove('hidden');
+    }
+
+    // 【追加】カスタムアラートを閉じる用の関数
+    function closeAlert() {
+      document.getElementById('custom-alert').classList.add('hidden');
+    }
+
+
     // 本人確認状態のチェック
     function checkUserVerification() {
       fetch(GAS_WEB_APP_URL, {
@@ -184,7 +212,7 @@
       errorMsg.classList.add('hidden');
 
       if (!email) {
-        alert("メールアドレスをご記入ください。");
+        showAlert("メールアドレスをご記入ください。");
         return;
       }
 
@@ -283,11 +311,11 @@
       .then(data => {
         document.getElementById('step-auth-code').classList.remove('pointer-events-none', 'opacity-50');
         if (data.status === 'otp_sent') {
-          alert("新しいパスコードをメールで再送信しました。ご確認ください。");
+          showAlert("新しいパスコードをメールで再送信しました。ご確認ください。");
           document.getElementById('auth-code').value = "";
           document.getElementById('code-error-msg').classList.add('hidden');
         } else {
-          alert("再送信に失敗しました: " + data.message);
+          showAlert("再送信に失敗しました: " + data.message);
         }
       })
       .catch(err => {
