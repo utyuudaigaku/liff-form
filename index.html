@@ -11,6 +11,16 @@
 </head>
 <body class="bg-gray-50 min-h-screen flex flex-col justify-between text-gray-800">
 
+    <!-- 【追加】画面操作防止用の全画面ローディングオーバーレイ -->
+  <div id="loading-overlay" class="fixed inset-0 bg-gray-900 bg-opacity-70 flex flex-col items-center justify-center p-4 z-50 hidden">
+    <div class="bg-white rounded-lg shadow-xl max-w-sm w-full p-8 text-center flex flex-col items-center">
+      <div class="animate-spin inline-block w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full mb-6"></div>
+      <p class="text-gray-800 font-bold text-lg leading-relaxed">
+        画面を閉じないで<br>そのままお待ちください
+      </p>
+    </div>
+  </div>
+
     <!-- 【追加】カスタムモーダル（ドメイン名が表示されないアラート） -->
   <div id="custom-alert" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50 hidden">
     <div class="bg-white rounded-lg shadow-lg max-w-sm w-full p-6 text-center">
@@ -170,6 +180,14 @@
       document.getElementById('custom-alert').classList.add('hidden');
     }
 
+        // ローディング表示/非表示をコントロールするヘルパー関数
+    function showLoading() {
+      document.getElementById('loading-overlay').classList.remove('hidden');
+    }
+
+    function hideLoading() {
+      document.getElementById('loading-overlay').classList.add('hidden');
+    }
 
     // 本人確認状態のチェック
     function checkUserVerification() {
@@ -216,7 +234,8 @@
         return;
       }
 
-      // ローディング状態表示
+      // ローディング状態表示（画面操作を防止するオーバーレイ表示と念のための不透明化）
+      showLoading(); // 全画面ローディングを表示
       document.getElementById('step-auth-email').classList.add('pointer-events-none', 'opacity-50');
 
       fetch(GAS_WEB_APP_URL, {
@@ -231,6 +250,8 @@
       })
       .then(res => res.json())
       .then(data => {
+        // ローディング解除
+        hideLoading(); // 完了したためローディングを消す
         document.getElementById('step-auth-email').classList.remove('pointer-events-none', 'opacity-50');
         if (data.status === 'otp_sent') {
           confirmedEmail = email; // 再送時のためにメールアドレスを保持
@@ -245,6 +266,8 @@
         }
       })
       .catch(err => {
+        // ローディング解除
+        hideLoading(); // エラー時もローディングを確実に消す
         document.getElementById('step-auth-email').classList.remove('pointer-events-none', 'opacity-50');
         alert("送信エラーが発生しました。時間を置いて再度お試しください。");
       });
@@ -261,6 +284,8 @@
         return;
       }
 
+      // ローディング状態表示（画面操作を防止するオーバーレイ表示と念のための不透明化）
+      showLoading(); // 全画面ローディングを表示
       document.getElementById('step-auth-code').classList.add('pointer-events-none', 'opacity-50');
 
       fetch(GAS_WEB_APP_URL, {
@@ -276,6 +301,8 @@
       })
       .then(res => res.json())
       .then(data => {
+        // ローディング解除
+        hideLoading(); // 完了したためローディングを消す
         document.getElementById('step-auth-code').classList.remove('pointer-events-none', 'opacity-50');
         if (data.status === 'verified') {
           // 認証成功 -> アンケート画面へ
@@ -287,6 +314,8 @@
         }
       })
       .catch(err => {
+        // ローディング解除
+        hideLoading(); // エラー時もローディングを確実に消す
         document.getElementById('step-auth-code').classList.remove('pointer-events-none', 'opacity-50');
         alert("検証中に通信エラーが発生しました。");
       });
