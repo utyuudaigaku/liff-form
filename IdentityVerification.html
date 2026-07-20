@@ -106,54 +106,59 @@
     const PAYEE_FORM_HTML_URL = "https://utyuudaigaku.github.io/liff-form/payeeSubmitForm.html";
 
     // ★【重要設定】2つのLIFF IDをここで明確に定義・管理します
-    const LIFF_ID_APPLICATION = "2010733574-ZUB1nVjS"; // 支払い先申請フォーム用のLIFF ID
-    const LIFF_ID_SUBMIT = "2010733574-wirhLorK"; // 振り込み先提出フォーム用のLIFF ID
+    const LIFF_ID_APPLICATION = "2010733574-ZUB1nVjS"; // 支払い先申請フォーム用
+    const LIFF_ID_SUBMIT      = "2010733574-wirhLorK"; // 振り込み先提出フォーム用
 
-        // ==========================================
-    // 【100%確実】URLに潜むLIFF IDを特定して仕分ける処理
     // ==========================================
-    let currentLiffId = LIFF_ID_APPLICATION; // デフォルト値
+    // 【確実】route パラメータで分岐する処理
+    //  ※ LINE Developersで各LIFFのエンドポイントURLに
+    //     ?route=application / ?route=submit を付けておくこと
+    // ==========================================
+    let currentRoute = "application"; // デフォルト
+    let currentLiffId = LIFF_ID_APPLICATION;
 
     try {
-      // 1. 検査対象となるあらゆるURL文字列を用意（小文字・大文字のブレを無くすため小文字化して比較）
-      const rawUrl = window.location.href; 
-      const decodedUrl = decodeURIComponent(rawUrl);
-      const hashStr = window.location.hash;
-      const searchParams = new URLSearchParams(window.location.search);
+      // 1) 通常の ?route= を最優先で見る
+      let routeParam = new URLSearchParams(window.location.search).get("route");
 
-      // 比較用のキー（定数から大文字小文字を区別せず完全一致検出するためのターゲット）
-      const targetKeyWir = "wirhlork"; // 提出用
-      const targetKeyZub = "zub1nvjs"; // 申請用
+      // 2) LIFF が付与する liff.state 内にクエリが埋まるケースにも対応
+      if (!routeParam) {
+        const liffState = new URLSearchParams(window.location.search).get("liff.state");
+        if (liffState) {
+          const decoded = decodeURIComponent(liffState);
+          const inner = new URLSearchParams(
+            decoded.startsWith("?") ? decoded.substring(1) : decoded
+          );
+          routeParam = inner.get("route");
+        }
+      }
 
-      // 2. 判定用の検査テキストの塊を生成（URL、パラメータ、ハッシュすべてを小文字化して結合）
-      const searchTargetText = (
-        rawUrl + " " + 
-        decodedUrl + " " + 
-        hashStr + " " + 
-        searchParams.toString() + " " + 
-        (searchParams.get("liff.state") || "") + " " + 
-        (sessionStorage.getItem("LIFF:default:liffId") || "") + " " + 
-        (localStorage.getItem("LIFF:default:liffId") || "")
-      ).toLowerCase();
+      // 3) 最終フォールバック：URL全体に文字列が残っている場合の救済
+      if (!routeParam) {
+        const whole = decodeURIComponent(window.location.href).toLowerCase();
+        if (whole.indexOf("route=submit") !== -1 || whole.indexOf("wirhlork") !== -1) {
+          routeParam = "submit";
+        } else if (whole.indexOf("route=application") !== -1 || whole.indexOf("zub1nvjs") !== -1) {
+          routeParam = "application";
+        }
+      }
 
-      // 3. 2つのキーワードの存在を「完全一致（小文字化）」で厳重に比較して分岐
-      if (searchTargetText.indexOf(targetKeyWir) !== -1) {
-        // 提出フォーム用のキーワードが検出された場合は100%こちらに倒す
+      // 4) 判定結果を確定
+      if (routeParam === "submit") {
+        currentRoute  = "submit";
         currentLiffId = LIFF_ID_SUBMIT;
-      } else if (searchTargetText.indexOf(targetKeyZub) !== -1) {
-        // 申請フォーム用のキーワードが検出された場合
-        currentLiffId = LIFF_ID_APPLICATION;
       } else {
-        // 万が一どちらも検出できない場合は、URLに暗黙的に残るリダイレクト元のセッションや、フォールバックとして処理
+        currentRoute  = "application";
         currentLiffId = LIFF_ID_APPLICATION;
       }
 
-      console.log("確定したLIFF ID:", currentLiffId);
+      console.log("確定した route:", currentRoute, " / LIFF ID:", currentLiffId);
     } catch (e) {
-      console.error("LIFF ID仕分け処理でエラー発生:", e);
-      // 安全のため、エラーが起きても停止させず、デフォルトIDを割り当てる
+      console.error("route仕分け処理でエラー発生:", e);
+      currentRoute  = "application";
       currentLiffId = LIFF_ID_APPLICATION;
     }
+
 
 
 
@@ -360,11 +365,11 @@
 
       let redirectUrl = "";
       
-      // LINEリッチメニュー「wirhLorK」経由だった場合の新分岐
-      if (currentLiffId === "2010733574-wirhLorK") {
+      if (currentRoute === "submit") {
+        // 新規ルート：提出フォームへ
         redirectUrl = PAYEE_FORM_HTML_URL + "?name=" + encodeURIComponent(fullName);
       } else {
-        // それ以外の従来型ルート
+        // 従来ルート：申請フォームへ
         redirectUrl = FORM_HTML_URL + "?name=" + encodeURIComponent(fullName);
       }
       
