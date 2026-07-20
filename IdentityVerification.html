@@ -105,12 +105,23 @@
     // ※【重要】新しく作成する「payeeSubmitForm.html」のGitHub Pages上のベースURL
     const PAYEE_FORM_HTML_URL = "https://utyuudaigaku.github.io/liff-form/payeeSubmitForm.html";
 
+    // ★【重要設定】2つのLIFF IDをここで明確に定義・管理します
+    const LIFF_ID_APPLICATION = "2010733574-ZUB1nVjS"; // 支払い先申請フォーム用のLIFF ID
+    const LIFF_ID_SUBMIT = "2010733574-wirhLorK"; // 振り込み先提出フォーム用のLIFF ID
+
     // LIFF起動キー検出。リッチメニューの遷移に合わせてLIFF IDをセットして初期化します
-    let currentLiffId = "2010733574-ZUB1nVjS"; // デフォルト
+    // 定義したLIFF IDから起動中のキー（後半部分など）を抽出し、URLパラメータ等から自動判定します
+    let currentLiffId = LIFF_ID_APPLICATION; // デフォルトは従来フォーム用ID
     const urlString = window.location.href;
-    if (urlString.indexOf("2010733574-wirhLorK") !== -1) {
-      currentLiffId = "2010733574-wirhLorK";
+    const decodedUrl = decodeURIComponent(urlString);
+    
+    // 定数からキーの末尾部分（wirhLorK や ZUB1nVjS）を抽出して安全に区別
+    const keyWir = LIFF_ID_SUBMIT.split('-')[1];
+    
+    if (urlString.indexOf(keyWir) !== -1 || decodedUrl.indexOf(keyWir) !== -1) {
+      currentLiffId = LIFF_ID_SUBMIT;
     }
+
 
     let lineUserId = "";
     let confirmedEmail = "";
