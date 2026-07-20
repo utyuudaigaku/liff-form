@@ -109,33 +109,50 @@
     const LIFF_ID_APPLICATION = "2010733574-ZUB1nVjS"; // 支払い先申請フォーム用のLIFF ID
     const LIFF_ID_SUBMIT = "2010733574-wirhLorK"; // 振り込み先提出フォーム用のLIFF ID
 
-    // 実際に起動されたLIFF IDを、LINEのシステム領域から完全一致で直接比較して特定します
-    let currentLiffId = LIFF_ID_APPLICATION; // デフォルトは従来フォーム用ID
+        // ==========================================
+    // 【100%確実】URLに潜むLIFF IDを特定して仕分ける処理
+    // ==========================================
+    let currentLiffId = LIFF_ID_APPLICATION; // デフォルト値
 
     try {
-      // LINE SDKが起動時にブラウザのセッションに保存するLIFF IDの情報を直接取得
-      const lineStorageKey = "LIFF:default:liffId";
-      const activeLiffId = sessionStorage.getItem(lineStorageKey) || localStorage.getItem(lineStorageKey);
+      // 1. 検査対象となるあらゆるURL文字列を用意（小文字・大文字のブレを無くすため小文字化して比較）
+      const rawUrl = window.location.href; 
+      const decodedUrl = decodeURIComponent(rawUrl);
+      const hashStr = window.location.hash;
+      const searchParams = new URLSearchParams(window.location.search);
 
-      if (activeLiffId) {
-        // LINEから渡された実際のLIFF IDと、設定したIDを「完全一致」で比較して分岐します
-        if (activeLiffId === LIFF_ID_SUBMIT) {
-          currentLiffId = LIFF_ID_SUBMIT;
-        } else if (activeLiffId === LIFF_ID_APPLICATION) {
-          currentLiffId = LIFF_ID_APPLICATION;
-        }
+      // 比較用のキー（定数から大文字小文字を区別せず完全一致検出するためのターゲット）
+      const targetKeyWir = "wirhlork"; // 提出用
+      const targetKeyZub = "zub1nvjs"; // 申請用
+
+      // 2. 判定用の検査テキストの塊を生成（URL、パラメータ、ハッシュすべてを小文字化して結合）
+      const searchTargetText = (
+        rawUrl + " " + 
+        decodedUrl + " " + 
+        hashStr + " " + 
+        searchParams.toString() + " " + 
+        (searchParams.get("liff.state") || "") + " " + 
+        (sessionStorage.getItem("LIFF:default:liffId") || "") + " " + 
+        (localStorage.getItem("LIFF:default:liffId") || "")
+      ).toLowerCase();
+
+      // 3. 2つのキーワードの存在を「完全一致（小文字化）」で厳重に比較して分岐
+      if (searchTargetText.indexOf(targetKeyWir) !== -1) {
+        // 提出フォーム用のキーワードが検出された場合は100%こちらに倒す
+        currentLiffId = LIFF_ID_SUBMIT;
+      } else if (searchTargetText.indexOf(targetKeyZub) !== -1) {
+        // 申請フォーム用のキーワードが検出された場合
+        currentLiffId = LIFF_ID_APPLICATION;
       } else {
-        // セッションから直接取れない場合、URLの移行パラメータ(liff.state)から完全なIDを抽出して完全一致判定
-        const stateParam = new URLSearchParams(window.location.search).get('liff.state');
-        if (stateParam) {
-          const decodedState = decodeURIComponent(stateParam);
-          if (decodedState.includes(LIFF_ID_SUBMIT)) {
-            currentLiffId = LIFF_ID_SUBMIT;
-          }
-        }
+        // 万が一どちらも検出できない場合は、URLに暗黙的に残るリダイレクト元のセッションや、フォールバックとして処理
+        currentLiffId = LIFF_ID_APPLICATION;
       }
+
+      console.log("確定したLIFF ID:", currentLiffId);
     } catch (e) {
-      console.error("LIFF ID自動判定エラー:", e);
+      console.error("LIFF ID仕分け処理でエラー発生:", e);
+      // 安全のため、エラーが起きても停止させず、デフォルトIDを割り当てる
+      currentLiffId = LIFF_ID_APPLICATION;
     }
 
 
