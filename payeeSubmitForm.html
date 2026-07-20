@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>振り込み先提出フォーム</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- LINE LIFF SDK -->
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col justify-between text-gray-800">
+
+  <!-- 画面操作防止用全画面ローディングオーバーレイ -->
+  <div id="loading-overlay" class="fixed inset-0 bg-gray-900 bg-opacity-70 flex flex-col items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-lg shadow-xl max-w-sm w-full p-8 text-center flex flex-col items-center">
+      <div class="animate-spin inline-block w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full mb-6"></div>
+      <p id="loading-text" class="text-gray-800 font-bold text-lg leading-relaxed">
+        画面を閉じないで<br>そのままお待ちください
+      </p>
+    </div>
+  </div>
+
+  <div class="max-w-md w-full mx-auto px-4 py-8">
+    
+    <!-- メイン入力フォームコンテナ -->
+    <div id="form-container" class="hidden bg-white p-6 rounded-lg shadow-md">
+      <h2 class="text-xl font-bold mb-6 text-center text-indigo-700">お支払い先口座登録・変更</h2>
+      
+      <!-- 1. お名前表示領域 -->
+      <div class="mb-6 bg-gray-100 p-4 rounded-lg">
+        <span class="block text-xs font-semibold text-gray-500 mb-1">お名前（認証済み）</span>
+        <div id="user-name-display" class="text-lg font-bold text-gray-800">読み込み中...</div>
+      </div>
+
+      <!-- 2. PayPay ID 項目 -->
+      <div class="mb-6 p-4 border border-gray-100 rounded-lg shadow-sm">
+        <div class="flex items-center justify-between mb-3">
+          <label class="text-sm font-bold flex items-center gap-2" for="paypay-id">
+            PayPay ID
+          </label>
+          <span id="badge-paypay" class="text-xs font-bold px-2.5 py-1 rounded-full text-white bg-gray-400">判定中...</span>
+        </div>
+        <input type="text" id="paypay-id" placeholder="PayPay IDを入力してください" class="w-full p-2.5 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
+      </div>
+
+      <!-- 3. 銀行口座 項目 -->
+      <div class="mb-8 p-4 border border-gray-100 rounded-lg shadow-sm">
+        <div class="flex items-center justify-between mb-3">
+          <label class="text-sm font-bold flex items-center gap-2" for="bank-account">
+            銀行口座
+          </label>
+          <span id="badge-bank" class="text-xs font-bold px-2.5 py-1 rounded-full text-white bg-gray-400">判定中...</span>
+        </div>
+        <textarea id="bank-account" rows="3" placeholder="金融機関名、支店名、口座種別、口座番号、口座名義を正確に入力してください" class="w-full p-2.5 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none text-sm"></textarea>
+      </div>
+
+      <!-- 送信ボタン -->
+      <button onclick="submitForm()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 rounded-lg transition-colors duration-200 shadow-md">
+        提出する
+      </button>
+    </div>
+
+    <!-- 提出結果完了画面 -->
+    <div id="success-container" class="hidden bg-white p-8 rounded-lg shadow-md text-center">
+      <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 text-green-600 mb-6">
+        <svg class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+        </svg>
+      </div>
+      <h2 class="text-2xl font-bold mb-4 text-green-600">提出が完了しました</h2>
+      
+      <!-- 動的更新メッセージの挿入枠 -->
+      <div id="update-messages" class="text-sm text-gray-600 space-y-2 mb-8 bg-gray-50 p-4 rounded border border-gray-100"></div>
+
+      <p class="text-md font-bold text-gray-700 mb-8">ご協力ありがとうございました</p>
+
+      <button onclick="closeLiff()" class="w-full bg-gray-800 hover:bg-gray-900 text-white font-bold py-3 px-8 rounded-lg transition-colors duration-200">
+        閉じる
+      </button>
+    </div>
+
+  </div>
+
+  <script>
+    // ※【重要】新しくデプロイした「振り込み先提出.gs」のウェブアプリURL
+    const SUBMIT_GAS_URL = "https://script.google.com/macros/s/xxxx_YOUR_PAYEE_SUBMIT_GAS_URL_xxxx/exec";
+    // ※【重要】LINE DeveloperのLIFF ID
+    const LIFF_ID = "2010733574-wirhLorK";
+
+    let lineUserId = "";
+    let userFullName = "";
+    
+    // 初期の提出状態記録用フラグ
+    let isPaypayRegistered = false;
+    let isBankRegistered = false;
+
+    window.addEventListener('load', () => {
+      liff.init({ liffId: LIFF_ID })
+        .then(() => {
+          if (!liff.isLoggedIn()) {
+            liff.login();
+          } else {
+            liff.getProfile()
+              .then(profile => {
+                lineUserId = profile.userId;
+                parseQueryParam();
+              })
+              .catch(err => console.error("プロファイル取得失敗:", err));
+          }
+        })
+        .catch(err => console.error("LIFF初期化失敗:", err));
+    });
+
+    // 認証情報パラメータを読み込み
+    function parseQueryParam() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const nameParam = urlParams.get('name');
+
+      if (nameParam) {
+        userFullName = decodeURIComponent(nameParam);
+        document.getElementById('user-name-display').innerText = userFullName;
+        fetchCurrentPaymentDetails(); // 現在の登録情報をGASから取得
+      } else {
+        alert("認証情報が受け渡されませんでした。本人確認からやり直してください。");
+      }
+    }
+
+    // スプレッドシートから現在の登録情報を取得
+    function fetchCurrentPaymentDetails() {
+      fetch(SUBMIT_GAS_URL, {
+        method: 'POST',
+        mode: 'cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({
+          action: 'getPaymentDetails',
+          fullName: userFullName
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        // 全画面ローディングオーバーレイを解除
+        document.getElementById('loading-overlay').classList.add('hidden');
+        document.getElementById('form-container').classList.remove('hidden');
+
+        if (data.status === 'success') {
+          // PayPay IDのバッジ・バリュー切り替え
+          const paypayVal = data.paypayId;
+          const paypayBadge = document.getElementById('badge-paypay');
+          if (paypayVal) {
+            document.getElementById('paypay-id').value = paypayVal;
+            paypayBadge.innerText = "提出済み";
+            paypayBadge.className = "text-xs font-bold px-2.5 py-1 rounded-full text-white bg-green-500 shadow-sm";
+            isPaypayRegistered = true;
+          } else {
+            paypayBadge.innerText = "未提出";
+            paypayBadge.className = "text-xs font-bold px-2.5 py-1 rounded-full text-white bg-red-500 shadow-sm";
+            isPaypayRegistered = false;
+          }
+
+          // 銀行口座のバッジ・バリュー切り替え
+          const bankVal = data.bankAccount;
+          const bankBadge = document.getElementById('badge-bank');
+          if (bankVal) {
+            document.getElementById('bank-account').value = bankVal;
+            bankBadge.innerText = "提出済み";
+            bankBadge.className = "text-xs font-bold px-2.5 py-1 rounded-full text-white bg-green-500 shadow-sm";
+            isBankRegistered = true;
+          } else {
+            bankBadge.innerText = "未提出";
+            bankBadge.className = "text-xs font-bold px-2.5 py-1 rounded-full text-white bg-red-500 shadow-sm";
+            isBankRegistered = false;
+          }
+        } else {
+          alert("マスター情報の読み込みに失敗しました。管理者にお問い合わせください。");
+        }
+      })
+      .catch(err => {
+        console.error("情報取得失敗:", err);
+        document.getElementById('loading-overlay').classList.add('hidden');
+        alert("サーバー通信中にエラーが発生しました。");
+      });
+    }
+
+    // フォーム送信処理
+    function submitForm() {
+      const paypayIdInput = document.getElementById('paypay-id').value.trim();
+      const bankAccountInput = document.getElementById('bank-account').value.trim();
+
+      // 入力値バリデーション（「未提出」であった項目が空白の時にアラート）
+      if (!isPaypayRegistered && paypayIdInput === "") {
+        alert("未提出の「PayPay ID」欄が空白です。入力してください。");
+        return;
+      }
+      if (!isBankRegistered && bankAccountInput === "") {
+        alert("未提出の「銀行口座」欄が空白です。入力してください。");
+        return;
+      }
+
+      // 送信中表示への変更 (操作完全ロック)
+      document.getElementById('loading-text').innerHTML = "提出中です。<br>画面を閉じずにそのままお待ちください。";
+      document.getElementById('loading-overlay').classList.remove('hidden');
+
+      fetch(SUBMIT_GAS_URL, {
+        method: 'POST',
+        mode: 'cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({
+          action: 'submitPaymentDetails',
+          fullName: userFullName,
+          paypayId: paypayIdInput,
+          bankAccount: bankAccountInput
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        document.getElementById('loading-overlay').classList.add('hidden');
+
+        if (data.status === 'success') {
+          document.getElementById('form-container').classList.add('hidden');
+          
+          // 動的メッセージ生成領域
+          const msgContainer = document.getElementById('update-messages');
+          msgContainer.innerHTML = "";
+
+          // PayPay IDの更新メッセージ
+          if (data.results.paypay === 'new') {
+            msgContainer.innerHTML += `<p class="font-semibold text-indigo-700">・PayPay IDの新規登録が完了しました</p>`;
+          } else if (data.results.paypay === 'updated') {
+            msgContainer.innerHTML += `<p class="font-semibold text-gray-700">・提出済みのPayPay IDが更新されました</p>`;
+          }
+
+          // 銀行口座の更新メッセージ
+          if (data.results.bank === 'new') {
+            msgContainer.innerHTML += `<p class="font-semibold text-indigo-700">・銀行口座の新規登録が完了しました</p>`;
+          } else if (data.results.bank === 'updated') {
+            msgContainer.innerHTML += `<p class="font-semibold text-gray-700">・提出済みの銀行口座が更新されました</p>`;
+          }
+
+          if (msgContainer.innerHTML === "") {
+            msgContainer.innerHTML = `<p class="font-semibold text-gray-600">・登録内容に変更はありませんでした</p>`;
+          }
+
+          // 提出完了画面を表示
+          document.getElementById('success-container').classList.remove('hidden');
+        } else {
+          alert("登録エラーが発生しました: " + data.message);
+        }
+      })
+      .catch(err => {
+        console.error("送信エラー:", err);
+        document.getElementById('loading-overlay').classList.add('hidden');
+        alert("提出中にエラーが発生しました。通信環境を確認し再度お試しください。");
+      });
+    }
+
+    function closeLiff() {
+      liff.closeWindow();
+    }
+  </script>
+</body>
+</html>

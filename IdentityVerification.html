@@ -12,10 +12,10 @@
 <body class="bg-gray-50 min-h-screen flex flex-col justify-between text-gray-800">
 
   <!-- 画面操作防止用の全画面ローディングオーバーレイ -->
-  <div id="loading-overlay" class="fixed inset-0 bg-gray-900 bg-opacity-70 flex flex-col items-center justify-center p-4 z-50 hidden">
+  <div id="loading-overlay" class="fixed inset-0 bg-gray-900 bg-opacity-70 flex flex-col items-center justify-center p-4 z-50">
     <div class="bg-white rounded-lg shadow-xl max-w-sm w-full p-8 text-center flex flex-col items-center">
       <div class="animate-spin inline-block w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full mb-6"></div>
-      <p class="text-gray-800 font-bold text-lg leading-relaxed">
+      <p id="loading-text" class="text-gray-800 font-bold text-lg leading-relaxed">
         画面を閉じないで<br>そのままお待ちください
       </p>
     </div>
@@ -98,18 +98,24 @@
     // ※【重要】新しく独立してデプロイした「本人確認.gs」のウェブアプリURL
     const VERIFY_GAS_URL = "https://script.google.com/macros/s/AKfycbwYLXNkHBxqJ1pu7khIlsib8OcABrC97mnwYuQtvA59pxSbtHf3Uk9zJaT1OP0StMIi9Q/exec";
     
-    // ※【重要】既存のお支払い申請フォーム（index.html）のGitHub Pages上のURL
+    // ※【重要】既存のお支払い申請フォーム（index.html）のGitHub Pages上のベースURL
     const FORM_HTML_URL = "https://utyuudaigaku.github.io/liff-form/index.html";
     
-    // ※【重要設定】LINE DeveloperのLIFF ID
-    const LIFF_ID = "2010733574-ZUB1nVjS";
+    // ※【重要】新しく作成する「payeeSubmitForm.html」のGitHub Pages上のベースURL
+    const PAYEE_FORM_HTML_URL = "https://utyuudaigaku.github.io/liff-form/payeeSubmitForm.html";
+
+    // LIFF起動キー検出。リッチメニューの遷移に合わせてLIFF IDをセットして初期化します
+    let currentLiffId = "2010733574-ZUB1nVjS"; // デフォルト
+    const urlString = window.location.href;
+    if (urlString.indexOf("2010733574-wirhLorK") !== -1) {
+      currentLiffId = "2010733574-wirhLorK";
+    }
 
     let lineUserId = "";
     let confirmedEmail = "";
 
-    // LIFFの初期化
     window.addEventListener('load', () => {
-      liff.init({ liffId: LIFF_ID })
+      liff.init({ liffId: currentLiffId })
         .then(() => {
           if (!liff.isLoggedIn()) {
             liff.login();
@@ -156,9 +162,11 @@
       .then(response => response.json())
       .then(data => {
         document.getElementById('init-loading').classList.add('hidden');
+        document.getElementById('loading-overlay').classList.add('hidden'); // 初期ローディング解除
+
         if (data.status === 'verified') {
-          // すでに認証済みであれば、即時お支払い先申請フォーム(既存のHTML)へ転送
-          redirectToForm(data.fullName);
+          // すでに認証済みであれば遷移処理を実行
+          redirectToNextForm(data.fullName);
         } else {
           // 未認証の場合、ステップAの案内を表示
           document.getElementById('step-auth-intro').classList.remove('hidden');
@@ -166,6 +174,7 @@
       })
       .catch(err => {
         console.error("確認エラー:", err);
+        document.getElementById('loading-overlay').classList.add('hidden');
         alert("初期チェック中に通信エラーが発生しました。");
       });
     }
@@ -251,8 +260,8 @@
         hideLoading();
         document.getElementById('step-auth-code').classList.remove('pointer-events-none', 'opacity-50');
         if (data.status === 'verified') {
-          // 認証成功 -> お支払い先申請フォームへ名前をパラメータに乗せて転送
-          redirectToForm(data.fullName);
+          // 認証成功 -> 次の該当フォームへ転送
+          redirectToNextForm(data.fullName);
         } else {
           errorMsg.innerText = "パスコードが正しくありません、または有効期限(5分)が切れています。";
           errorMsg.classList.remove('hidden');
@@ -296,10 +305,24 @@
       });
     }
 
-    // 本人確認が完了したため、既存の申請フォームへ認証名を持って遷移（既存処理を実行）
-    function redirectToForm(fullName) {
-      const targetUrl = FORM_HTML_URL + "?name=" + encodeURIComponent(fullName);
-      window.location.replace(targetUrl);
+    // 本人確認成功後の遷移（条件分岐処理）
+    function redirectToNextForm(fullName) {
+      // 遷移中であるメッセージに全画面を書き換え
+      document.getElementById('loading-text').innerHTML = "画面を閉じないで<br>そのままお待ちください";
+      showLoading();
+
+      let redirectUrl = "";
+      
+      // LINEリッチメニュー「wirhLorK」経由だった場合の新分岐
+      if (currentLiffId === "2010733574-wirhLorK") {
+        redirectUrl = PAYEE_FORM_HTML_URL + "?name=" + encodeURIComponent(fullName);
+      } else {
+        // それ以外の従来型ルート
+        redirectUrl = FORM_HTML_URL + "?name=" + encodeURIComponent(fullName);
+      }
+      
+      // 自動遷移（ブラウザ履歴を残さないリプレイス方式）
+      window.location.replace(redirectUrl);
     }
   </script>
 </body>
