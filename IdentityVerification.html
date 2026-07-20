@@ -110,7 +110,8 @@
     const LIFF_ID_SUBMIT = "2010733574-wirhLorK"; // 振り込み先提出フォーム用のLIFF ID
 
     // 実際に起動されたLIFF IDを、URLや内部パラメータから完全一致で直接比較して特定します
-    let currentLiffId = LIFF_ID_APPLICATION; // デフォルト
+    let currentLiffId = LIFF_ID_SUBMIT; // デフォルト
+    //////let currentLiffId = LIFF_ID_APPLICATION; // デフォルト
     const urlString = window.location.href;
     const decodedUrl = decodeURIComponent(urlString);
     
