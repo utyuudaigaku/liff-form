@@ -11,7 +11,7 @@
 </head>
 <body class="bg-gray-50 min-h-screen flex flex-col justify-between text-gray-800">
 
-    <!-- 画面操作防止用の全画面ローディングオーバーレイ -->
+  <!-- 画面操作防止用の全画面ローディングオーバーレイ（初期状態で重ならないよう hidden クラスを設定） -->
   <div id="loading-overlay" class="hidden fixed inset-0 bg-gray-900 bg-opacity-70 flex flex-col items-center justify-center p-4 z-50">
     <div class="bg-white rounded-lg shadow-xl max-w-sm w-full p-8 text-center flex flex-col items-center">
       <div class="animate-spin inline-block w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full mb-6"></div>
@@ -20,7 +20,6 @@
       </p>
     </div>
   </div>
-
 
   <!-- カスタムモーダル（アラート用） -->
   <div id="custom-alert" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50 hidden">
@@ -36,7 +35,6 @@
       </button>
     </div>
   </div>
-
 
   <div class="max-w-md w-full mx-auto px-4 py-8">
     
@@ -151,19 +149,24 @@
 
     // A. 認証ステータスの確認処理
     function checkUserVerification() {
+      // GASのCORS制限を回避するため、mode: 'cors' や headers などの不要オプションを排除してPOST
       fetch(VERIFY_GAS_URL, {
         method: 'POST',
-        mode: 'cors',
-        headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({
           action: 'checkVerification',
           userId: lineUserId
         })
       })
-      .then(response => response.json())
+      .then(response => {
+        if (!response.ok) {
+          throw new Error("ネットワークエラーが発生しました。");
+        }
+        return response.json();
+      })
       .then(data => {
+        // 白い初期ローディングカードと全画面ローディングを確実に非表示にする
         document.getElementById('init-loading').classList.add('hidden');
-        document.getElementById('loading-overlay').classList.add('hidden'); // 初期ローディング解除
+        document.getElementById('loading-overlay').classList.add('hidden');
 
         if (data.status === 'verified') {
           // すでに認証済みであれば遷移処理を実行
@@ -175,8 +178,10 @@
       })
       .catch(err => {
         console.error("確認エラー:", err);
+        // エラー発生時、ローディングを表示したままにせず非表示にする
+        document.getElementById('init-loading').classList.add('hidden');
         document.getElementById('loading-overlay').classList.add('hidden');
-        alert("初期チェック中に通信エラーが発生しました。");
+        showAlert("初期チェック中に通信エラーが発生しました。時間を置いて再度お試しください。");
       });
     }
 
@@ -199,17 +204,19 @@
       showLoading();
       document.getElementById('step-auth-email').classList.add('pointer-events-none', 'opacity-50');
 
+      // GASのCORS制限回避のため、プレーンなPOST設定に書き換え
       fetch(VERIFY_GAS_URL, {
         method: 'POST',
-        mode: 'cors',
-        headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({
           action: 'sendOtp',
           email: email,
           userId: lineUserId
         })
       })
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error();
+        return res.json();
+      })
       .then(data => {
         hideLoading();
         document.getElementById('step-auth-email').classList.remove('pointer-events-none', 'opacity-50');
@@ -245,10 +252,9 @@
       showLoading();
       document.getElementById('step-auth-code').classList.add('pointer-events-none', 'opacity-50');
 
+      // GASのCORS制限回避のため、プレーンなPOST設定に書き換え
       fetch(VERIFY_GAS_URL, {
         method: 'POST',
-        mode: 'cors',
-        headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({
           action: 'verifyOtp',
           email: confirmedEmail,
@@ -256,12 +262,15 @@
           otp: code
         })
       })
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error();
+        return res.json();
+      })
       .then(data => {
         hideLoading();
         document.getElementById('step-auth-code').classList.remove('pointer-events-none', 'opacity-50');
         if (data.status === 'verified') {
-          // 認証成功 -> 次の該当フォームへ転送
+          // 認証成功 -> 遷移処理を実行（正しい新関数名 redirectToNextForm を呼び出し）
           redirectToNextForm(data.fullName);
         } else {
           errorMsg.innerText = "パスコードが正しくありません、または有効期限(5分)が切れています。";
@@ -279,17 +288,19 @@
       event.preventDefault();
       document.getElementById('step-auth-code').classList.add('pointer-events-none', 'opacity-50');
 
+      // GASのCORS制限回避のため、プレーンなPOST設定に書き換え
       fetch(VERIFY_GAS_URL, {
         method: 'POST',
-        mode: 'cors',
-        headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({
           action: 'sendOtp',
           email: confirmedEmail,
           userId: lineUserId
         })
       })
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error();
+        return res.json();
+      })
       .then(data => {
         document.getElementById('step-auth-code').classList.remove('pointer-events-none', 'opacity-50');
         if (data.status === 'otp_sent') {
