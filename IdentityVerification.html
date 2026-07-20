@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>本人確認認証システム</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- LINE LIFF SDK -->
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col justify-between text-gray-800">
+
+  <!-- 画面操作防止用の全画面ローディングオーバーレイ -->
+  <div id="loading-overlay" class="fixed inset-0 bg-gray-900 bg-opacity-70 flex flex-col items-center justify-center p-4 z-50 hidden">
+    <div class="bg-white rounded-lg shadow-xl max-w-sm w-full p-8 text-center flex flex-col items-center">
+      <div class="animate-spin inline-block w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full mb-6"></div>
+      <p class="text-gray-800 font-bold text-lg leading-relaxed">
+        画面を閉じないで<br>そのままお待ちください
+      </p>
+    </div>
+  </div>
+
+  <!-- カスタムモーダル（アラート用） -->
+  <div id="custom-alert" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50 hidden">
+    <div class="bg-white rounded-lg shadow-lg max-w-sm w-full p-6 text-center">
+      <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-indigo-100 text-indigo-600 mb-4">
+        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+        </svg>
+      </div>
+      <p id="alert-text" class="text-gray-700 font-medium mb-6 leading-relaxed whitespace-pre-line"></p>
+      <button onclick="closeAlert()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-4 rounded transition-colors duration-200">
+        確認
+      </button>
+    </div>
+  </div>
+
+
+  <div class="max-w-md w-full mx-auto px-4 py-8">
+    
+    <!-- 全体初期ローディング表示 -->
+    <div id="init-loading" class="bg-white p-6 rounded-lg shadow-md text-center">
+      <div class="animate-spin inline-block w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full mb-4"></div>
+      <p class="text-lg font-medium">本人確認状況をチェックしています...</p>
+    </div>
+
+    <!-- ステップA: 本人確認案内画面 -->
+    <div id="step-auth-intro" class="hidden bg-white p-6 rounded-lg shadow-md">
+      <h2 class="text-xl font-bold mb-4 text-center text-indigo-700">本人確認</h2>
+      <p class="text-gray-600 mb-6 leading-relaxed text-sm">本人確認を行います。この認証は一度だけ行われます。</p>
+      <button onclick="goStepEmail()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded transition-colors duration-200">
+        次へ
+      </button>
+    </div>
+
+    <!-- ステップB: メールアドレス入力画面 -->
+    <div id="step-auth-email" class="hidden bg-white p-6 rounded-lg shadow-md">
+      <h2 class="text-xl font-bold mb-4 text-center text-indigo-700">メールアドレス確認</h2>
+      <p class="text-gray-600 mb-4 text-sm leading-relaxed">宇宙大楽の本申し込みの際に登録したメールアドレスを入力してください。</p>
+      
+      <div class="mb-6">
+        <label class="block text-sm font-semibold mb-2" for="auth-email">メールアドレス <span class="text-red-500">*</span></label>
+        <input type="email" id="auth-email" placeholder="example@example.com" class="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none" required>
+        <p id="email-error-msg" class="text-red-500 text-sm mt-1 hidden"></p>
+      </div>
+
+      <button onclick="submitEmail()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded transition-colors duration-200">
+        次へ
+      </button>
+    </div>
+
+    <!-- ステップC: ワンタイムパスコード入力画面 -->
+    <div id="step-auth-code" class="hidden bg-white p-6 rounded-lg shadow-md">
+      <h2 class="text-xl font-bold mb-4 text-center text-indigo-700">ワンタイムコード認証</h2>
+      <p class="text-gray-600 mb-4 text-sm leading-relaxed">
+        先ほど入力したメールアドレス宛にワンタイムパスコードを記載したメールを送信しました。<br>メールを開いて以下の記入欄に<span class="font-bold text-indigo-600">6桁</span>のパスコードを入力して、認証するを押してください。
+      </p>
+
+      <div class="mb-4">
+        <label class="block text-sm font-semibold mb-2" for="auth-code">パスコード <span class="text-red-500">*</span></label>
+        <input type="text" id="auth-code" maxlength="6" placeholder="123456" class="w-full p-2 text-center text-2xl tracking-widest border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none" required>
+        <p id="code-error-msg" class="text-red-500 text-sm mt-1 hidden"></p>
+      </div>
+
+      <button onclick="submitCode()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded transition-colors duration-200 mb-4">
+        認証する
+      </button>
+
+      <div class="text-center">
+        <a href="#" onclick="resendCode(event)" class="text-sm text-indigo-600 hover:underline">もう一度パスコードを送信する</a>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // ※【重要】新しく独立してデプロイした「本人確認.gs」のウェブアプリURL
+    const VERIFY_GAS_URL = "https://script.google.com/macros/s/AKfycbwYLXNkHBxqJ1pu7khIlsib8OcABrC97mnwYuQtvA59pxSbtHf3Uk9zJaT1OP0StMIi9Q/exec";
+    
+    // ※【重要】既存のお支払い申請フォーム（index.html）のGitHub Pages上のURL
+    const FORM_HTML_URL = "https://utyuudaigaku.github.io/liff-form/index.html";
+    
+    // ※【重要設定】LINE DeveloperのLIFF ID
+    const LIFF_ID = "2010733574-ZUB1nVjS";
+
+    let lineUserId = "";
+    let confirmedEmail = "";
+
+    // LIFFの初期化
+    window.addEventListener('load', () => {
+      liff.init({ liffId: LIFF_ID })
+        .then(() => {
+          if (!liff.isLoggedIn()) {
+            liff.login();
+          } else {
+            liff.getProfile()
+              .then(profile => {
+                lineUserId = profile.userId;
+                checkUserVerification(); // 本人確認チェック開始
+              })
+              .catch(err => console.error("プロファイル取得失敗:", err));
+          }
+        })
+        .catch(err => console.error("LIFF初期化失敗:", err));
+    });
+
+    function showAlert(message) {
+      document.getElementById('alert-text').innerText = message;
+      document.getElementById('custom-alert').classList.remove('hidden');
+    }
+
+    function closeAlert() {
+      document.getElementById('custom-alert').classList.add('hidden');
+    }
+
+    function showLoading() {
+      document.getElementById('loading-overlay').classList.remove('hidden');
+    }
+
+    function hideLoading() {
+      document.getElementById('loading-overlay').classList.add('hidden');
+    }
+
+    // A. 認証ステータスの確認処理
+    function checkUserVerification() {
+      fetch(VERIFY_GAS_URL, {
+        method: 'POST',
+        mode: 'cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({
+          action: 'checkVerification',
+          userId: lineUserId
+        })
+      })
+      .then(response => response.json())
+      .then(data => {
+        document.getElementById('init-loading').classList.add('hidden');
+        if (data.status === 'verified') {
+          // すでに認証済みであれば、即時お支払い先申請フォーム(既存のHTML)へ転送
+          redirectToForm(data.fullName);
+        } else {
+          // 未認証の場合、ステップAの案内を表示
+          document.getElementById('step-auth-intro').classList.remove('hidden');
+        }
+      })
+      .catch(err => {
+        console.error("確認エラー:", err);
+        alert("初期チェック中に通信エラーが発生しました。");
+      });
+    }
+
+    function goStepEmail() {
+      document.getElementById('step-auth-intro').classList.add('hidden');
+      document.getElementById('step-auth-email').classList.remove('hidden');
+    }
+
+    // B. メールアドレス登録リスト確認とワンタイム送信
+    function submitEmail() {
+      const email = document.getElementById('auth-email').value.trim();
+      const errorMsg = document.getElementById('email-error-msg');
+      errorMsg.classList.add('hidden');
+
+      if (!email) {
+        showAlert("メールアドレスをご記入ください。");
+        return;
+      }
+
+      showLoading();
+      document.getElementById('step-auth-email').classList.add('pointer-events-none', 'opacity-50');
+
+      fetch(VERIFY_GAS_URL, {
+        method: 'POST',
+        mode: 'cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({
+          action: 'sendOtp',
+          email: email,
+          userId: lineUserId
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        hideLoading();
+        document.getElementById('step-auth-email').classList.remove('pointer-events-none', 'opacity-50');
+        if (data.status === 'otp_sent') {
+          confirmedEmail = email;
+          document.getElementById('step-auth-email').classList.add('hidden');
+          document.getElementById('step-auth-code').classList.remove('hidden');
+        } else if (data.status === 'email_not_matched') {
+          errorMsg.innerText = "登録されたメールアドレスと違います。";
+          errorMsg.classList.remove('hidden');
+        } else {
+          alert("エラー: " + data.message);
+        }
+      })
+      .catch(err => {
+        hideLoading();
+        document.getElementById('step-auth-email').classList.remove('pointer-events-none', 'opacity-50');
+        alert("送信エラーが発生しました。時間を置いて再度お試しください。");
+      });
+    }
+
+    // C. パスコードの突合と認証処理
+    function submitCode() {
+      const code = document.getElementById('auth-code').value.trim();
+      const errorMsg = document.getElementById('code-error-msg');
+      errorMsg.classList.add('hidden');
+
+      if (!code) {
+        showAlert("パスコードを入力してください。");
+        return;
+      }
+
+      showLoading();
+      document.getElementById('step-auth-code').classList.add('pointer-events-none', 'opacity-50');
+
+      fetch(VERIFY_GAS_URL, {
+        method: 'POST',
+        mode: 'cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({
+          action: 'verifyOtp',
+          email: confirmedEmail,
+          userId: lineUserId,
+          otp: code
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        hideLoading();
+        document.getElementById('step-auth-code').classList.remove('pointer-events-none', 'opacity-50');
+        if (data.status === 'verified') {
+          // 認証成功 -> お支払い先申請フォームへ名前をパラメータに乗せて転送
+          redirectToForm(data.fullName);
+        } else {
+          errorMsg.innerText = "パスコードが正しくありません、または有効期限(5分)が切れています。";
+          errorMsg.classList.remove('hidden');
+        }
+      })
+      .catch(err => {
+        hideLoading();
+        document.getElementById('step-auth-code').classList.remove('pointer-events-none', 'opacity-50');
+        alert("検証中に通信エラーが発生しました。");
+      });
+    }
+
+    function resendCode(event) {
+      event.preventDefault();
+      document.getElementById('step-auth-code').classList.add('pointer-events-none', 'opacity-50');
+
+      fetch(VERIFY_GAS_URL, {
+        method: 'POST',
+        mode: 'cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({
+          action: 'sendOtp',
+          email: confirmedEmail,
+          userId: lineUserId
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        document.getElementById('step-auth-code').classList.remove('pointer-events-none', 'opacity-50');
+        if (data.status === 'otp_sent') {
+          showAlert("新しいパスコードをメールで再送信しました。ご確認ください。");
+          document.getElementById('auth-code').value = "";
+          document.getElementById('code-error-msg').classList.add('hidden');
+        } else {
+          showAlert("再送信に失敗しました: " + data.message);
+        }
+      })
+      .catch(err => {
+        document.getElementById('step-auth-code').classList.remove('pointer-events-none', 'opacity-50');
+        alert("再送信エラーが発生しました。");
+      });
+    }
+
+    // 本人確認が完了したため、既存の申請フォームへ認証名を持って遷移（既存処理を実行）
+    function redirectToForm(fullName) {
+      const targetUrl = FORM_HTML_URL + "?name=" + encodeURIComponent(fullName);
+      window.location.replace(targetUrl);
+    }
+  </script>
+</body>
+</html>
