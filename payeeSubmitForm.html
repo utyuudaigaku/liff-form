@@ -268,12 +268,20 @@
             hasAnyMessage = true;
           }
 
-          // 変更が全くない（両方とも unchanged）場合はメッセージ枠全体を非表示にする
+          // 両方提出済み、かつ両方とも変更がなかった場合の文言処理
           if (hasAnyMessage) {
             msgContainer.classList.remove('hidden');
           } else {
-            msgContainer.classList.add('hidden');
+            // isPaypayRegistered と isBankRegistered が両方 true で変更がない場合
+            if (isPaypayRegistered && isBankRegistered) {
+              msgContainer.innerHTML = `<p class="font-semibold text-gray-600">登録内容に変更はありませんでした</p>`;
+              msgContainer.classList.remove('hidden');
+            } else {
+              // それ以外のケース（不要な場合）は非表示
+              msgContainer.classList.add('hidden');
+            }
           }
+
 
           // 提出完了画面を表示
           document.getElementById('success-container').classList.remove('hidden');
