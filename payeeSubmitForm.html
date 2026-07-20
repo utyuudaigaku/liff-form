@@ -21,6 +21,22 @@
     </div>
   </div>
 
+  <!-- 【追加】GitHub.ioなどのドメイン表示が出ないカスタムアラートモーダル -->
+  <div id="custom-alert" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center p-4 z-50 animate-fade-in">
+    <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 text-center border border-gray-100">
+      <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 text-red-600 mb-4">
+        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+        </svg>
+      </div>
+      <h3 class="text-lg font-bold text-gray-900 mb-2">確認してください</h3>
+      <p id="custom-alert-message" class="text-sm text-gray-600 mb-6 leading-relaxed whitespace-pre-line"></p>
+      <button onclick="closeCustomAlert()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-lg transition-colors duration-200 shadow-md">
+        確認
+      </button>
+    </div>
+  </div>
+
   <div class="max-w-md w-full mx-auto px-4 py-8">
     
     <!-- メイン入力フォームコンテナ -->
@@ -71,7 +87,7 @@
       <h2 class="text-2xl font-bold mb-4 text-green-600">提出が完了しました</h2>
       
       <!-- 動的更新メッセージの挿入枠 -->
-      <div id="update-messages" class="text-sm text-gray-600 space-y-2 mb-8 bg-gray-50 p-4 rounded border border-gray-100 hidden"></div>
+      <div id="update-messages" class="hidden text-sm text-gray-600 space-y-2 mb-8 bg-gray-50 p-4 rounded border border-gray-100"></div>
 
       <p class="text-md font-bold text-gray-700 mb-8">ご協力ありがとうございました</p>
 
@@ -85,7 +101,7 @@
   <script>
     // ※【重要】新しくデプロイした「振り込み先提出.gs」のウェブアプリURL
     const SUBMIT_GAS_URL = "https://script.google.com/macros/s/AKfycbwcLBEh620QZofYJAajenJko_6ZybaoGgMuL49qSNwX8mHEebtPY80tGg-Kt_FNx89t/exec";
-    // ※【重要】LINE Developer of LIFF ID
+    // ※【重要】LINE DeveloperのLIFF ID
     const LIFF_ID = "2010733574-wirhLorK";
 
     let lineUserId = "";
@@ -94,6 +110,17 @@
     // 初期の提出状態記録用フラグ
     let isPaypayRegistered = false;
     let isBankRegistered = false;
+
+    // 【新設】カスタムアラートを表示する関数
+    function showCustomAlert(message) {
+      document.getElementById('custom-alert-message').innerText = message;
+      document.getElementById('custom-alert').classList.remove('hidden');
+    }
+
+    // 【新設】カスタムアラートを閉じる関数
+    function closeCustomAlert() {
+      document.getElementById('custom-alert').classList.add('hidden');
+    }
 
     window.addEventListener('load', () => {
       liff.init({ liffId: LIFF_ID })
@@ -122,7 +149,7 @@
         document.getElementById('user-name-display').innerText = userFullName;
         fetchCurrentPaymentDetails(); // 現在の登録情報をGASから取得
       } else {
-        alert("認証情報が受け渡されませんでした。本人確認からやり直してください。");
+        showCustomAlert("認証情報が受け渡されませんでした。本人確認からやり直してください。");
       }
     }
 
@@ -172,13 +199,13 @@
             isBankRegistered = false;
           }
         } else {
-          alert("マスター情報の読み込みに失敗しました。管理者にお問い合わせください。");
+          showCustomAlert("マスター情報の読み込みに失敗しました。管理者にお問い合わせください。");
         }
       })
       .catch(err => {
         console.error("情報取得失敗:", err);
         document.getElementById('loading-overlay').classList.add('hidden');
-        alert("サーバー通信中にエラーが発生しました。");
+        showCustomAlert("サーバー通信中にエラーが発生しました。");
       });
     }
 
@@ -187,13 +214,13 @@
       const paypayIdInput = document.getElementById('paypay-id').value.trim();
       const bankAccountInput = document.getElementById('bank-account').value.trim();
 
-      // 入力値バリデーション（「未提出」であった項目が空白の時にアラート）
+      // 入力値バリデーション（カスタムアラートを使用）
       if (!isPaypayRegistered && paypayIdInput === "") {
-        alert("未提出の「PayPay ID」欄が空白です。入力してください。");
+        showCustomAlert("未提出の「PayPay ID」欄が空白です。入力してください。");
         return;
       }
       if (!isBankRegistered && bankAccountInput === "") {
-        alert("未提出の「銀行口座」欄が空白です。入力してください。");
+        showCustomAlert("未提出の「銀行口座」欄が空白です。入力してください。");
         return;
       }
 
@@ -219,12 +246,11 @@
         if (data.status === 'success') {
           document.getElementById('form-container').classList.add('hidden');
           
-          // 動的メッセージ生成領域
           const msgContainer = document.getElementById('update-messages');
           msgContainer.innerHTML = "";
           let hasAnyMessage = false;
 
-          // PayPay IDのメッセージ判定
+          // PayPay IDの更新メッセージ
           if (data.results.paypay === 'new') {
             msgContainer.innerHTML += `<p class="font-semibold text-indigo-700">・PayPay IDの新規登録が完了しました</p>`;
             hasAnyMessage = true;
@@ -233,7 +259,7 @@
             hasAnyMessage = true;
           }
 
-          // 銀行口座のメッセージ判定
+          // 銀行口座の更新メッセージ
           if (data.results.bank === 'new') {
             msgContainer.innerHTML += `<p class="font-semibold text-indigo-700">・銀行口座の新規登録が完了しました</p>`;
             hasAnyMessage = true;
@@ -242,7 +268,7 @@
             hasAnyMessage = true;
           }
 
-          // 変更や新規追加があった場合のみ、メッセージ挿入枠を表示する（変更がない場合は枠自体を隠しておく）
+          // 変更が全くない（両方とも unchanged）場合はメッセージ枠全体を非表示にする
           if (hasAnyMessage) {
             msgContainer.classList.remove('hidden');
           } else {
@@ -252,17 +278,16 @@
           // 提出完了画面を表示
           document.getElementById('success-container').classList.remove('hidden');
         } else {
-          alert("登録エラーが発生しました: " + data.message);
+          showCustomAlert("登録エラーが発生しました: " + data.message);
         }
       })
       .catch(err => {
         console.error("送信エラー:", err);
         document.getElementById('loading-overlay').classList.add('hidden');
-        alert("提出中にエラーが発生しました。通信環境を確認し再度お試しください。");
+        showCustomAlert("提出中にエラーが発生しました。通信環境を確認し再度お試しください。");
       });
     }
 
-    // LIFF画面を閉じる
     function closeLiff() {
       liff.closeWindow();
     }
