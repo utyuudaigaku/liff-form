@@ -109,16 +109,35 @@
     const LIFF_ID_APPLICATION = "2010733574-ZUB1nVjS"; // 支払い先申請フォーム用のLIFF ID
     const LIFF_ID_SUBMIT = "2010733574-wirhLorK"; // 振り込み先提出フォーム用のLIFF ID
 
-    // 実際に起動されたLIFF IDを、URLや内部パラメータから完全一致で直接比較して特定します
-    let currentLiffId = LIFF_ID_SUBMIT; // デフォルト
-    //////let currentLiffId = LIFF_ID_APPLICATION; // デフォルト
-    const urlString = window.location.href;
-    const decodedUrl = decodeURIComponent(urlString);
-    
-    // 設定したID「2010733574-wirhLorK」がURLの中に完全一致で入っているか直接確認
-    if (urlString.indexOf(LIFF_ID_SUBMIT) !== -1 || decodedUrl.indexOf(LIFF_ID_SUBMIT) !== -1) {
-      currentLiffId = LIFF_ID_SUBMIT;
+    // 実際に起動されたLIFF IDを、LINEのシステム領域から完全一致で直接比較して特定します
+    let currentLiffId = LIFF_ID_APPLICATION; // デフォルトは従来フォーム用ID
+
+    try {
+      // LINE SDKが起動時にブラウザのセッションに保存するLIFF IDの情報を直接取得
+      const lineStorageKey = "LIFF:default:liffId";
+      const activeLiffId = sessionStorage.getItem(lineStorageKey) || localStorage.getItem(lineStorageKey);
+
+      if (activeLiffId) {
+        // LINEから渡された実際のLIFF IDと、設定したIDを「完全一致」で比較して分岐します
+        if (activeLiffId === LIFF_ID_SUBMIT) {
+          currentLiffId = LIFF_ID_SUBMIT;
+        } else if (activeLiffId === LIFF_ID_APPLICATION) {
+          currentLiffId = LIFF_ID_APPLICATION;
+        }
+      } else {
+        // セッションから直接取れない場合、URLの移行パラメータ(liff.state)から完全なIDを抽出して完全一致判定
+        const stateParam = new URLSearchParams(window.location.search).get('liff.state');
+        if (stateParam) {
+          const decodedState = decodeURIComponent(stateParam);
+          if (decodedState.includes(LIFF_ID_SUBMIT)) {
+            currentLiffId = LIFF_ID_SUBMIT;
+          }
+        }
+      }
+    } catch (e) {
+      console.error("LIFF ID自動判定エラー:", e);
     }
+
 
 
 
