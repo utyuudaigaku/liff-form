@@ -109,18 +109,16 @@
     const LIFF_ID_APPLICATION = "2010733574-ZUB1nVjS"; // 支払い先申請フォーム用のLIFF ID
     const LIFF_ID_SUBMIT = "2010733574-wirhLorK"; // 振り込み先提出フォーム用のLIFF ID
 
-    // LIFF起動キー検出。リッチメニューの遷移に合わせてLIFF IDをセットして初期化します
-    // 定義したLIFF IDから起動中のキー（後半部分など）を抽出し、URLパラメータ等から自動判定します
-    let currentLiffId = LIFF_ID_APPLICATION; // デフォルトは従来フォーム用ID
+    // 実際に起動されたLIFF IDを、URLや内部パラメータから完全一致で直接比較して特定します
+    let currentLiffId = LIFF_ID_APPLICATION; // デフォルト
     const urlString = window.location.href;
     const decodedUrl = decodeURIComponent(urlString);
     
-    // 定数からキーの末尾部分（wirhLorK や ZUB1nVjS）を抽出して安全に区別
-    const keyWir = LIFF_ID_SUBMIT.split('-')[1];
-    
-    if (urlString.indexOf(keyWir) !== -1 || decodedUrl.indexOf(keyWir) !== -1) {
+    // 設定したID「2010733574-wirhLorK」がURLの中に完全一致で入っているか直接確認
+    if (urlString.indexOf(LIFF_ID_SUBMIT) !== -1 || decodedUrl.indexOf(LIFF_ID_SUBMIT) !== -1) {
       currentLiffId = LIFF_ID_SUBMIT;
     }
+
 
 
     let lineUserId = "";
