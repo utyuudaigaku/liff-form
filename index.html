@@ -11,6 +11,22 @@
 </head>
 <body class="bg-gray-50 min-h-screen flex flex-col justify-between text-gray-800">
 
+  <!-- GitHub.ioなどのドメイン表示が出ないカスタムアラートモーダル -->
+  <div id="custom-alert" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 text-center border border-gray-100">
+      <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 text-red-600 mb-4">
+        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+        </svg>
+      </div>
+      <h3 class="text-lg font-bold text-gray-900 mb-2">確認してください</h3>
+      <p id="custom-alert-message" class="text-sm text-gray-600 mb-6 leading-relaxed whitespace-pre-line"></p>
+      <button onclick="closeCustomAlert()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-lg transition-colors duration-200 shadow-md">
+        確認
+      </button>
+    </div>
+  </div>
+
   <div class="max-w-md w-full mx-auto px-4 py-8">
     
     <!-- 全体初期ローディング表示 -->
@@ -31,14 +47,11 @@
           <input type="hidden" id="applicant-name" value="">
         </div>
 
-        <!-- 2. 支払い先のお名前 -->
+        <!-- 2. 支払い先のお名前（動的読み込みに対応） -->
         <div class="mb-4">
           <label class="block text-sm font-semibold mb-2" for="payee-name">送金先のお名前 <span class="text-red-500">*</span></label>
           <select id="payee-name" class="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none" required>
-            <option value="">-- 選択してください --</option>
-            <option value="山田太郎">山田太郎</option>
-            <option value="佐藤花子">佐藤花子</option>
-            <option value="鈴木一郎">鈴木一郎</option>
+            <option value="">-- 名前のデータを読み込み中... --</option>
           </select>
         </div>
 
@@ -78,6 +91,17 @@
     let lineUserId = "";
     let applicantName = "";
 
+    // カスタムアラートを表示する関数
+    function showCustomAlert(message) {
+      document.getElementById('custom-alert-message').innerText = message;
+      document.getElementById('custom-alert').classList.remove('hidden');
+    }
+
+    // カスタムアラートを閉じる関数
+    function closeCustomAlert() {
+      document.getElementById('custom-alert').classList.add('hidden');
+    }
+
     // LIFFの初期化とパラメータ取得
     window.addEventListener('load', () => {
       liff.init({ liffId: LIFF_ID })
@@ -103,13 +127,54 @@
 
       if (nameParam) {
         applicantName = decodeURIComponent(nameParam);
-        document.getElementById('init-loading').classList.add('hidden');
         document.getElementById('applicant-name-display').innerText = applicantName;
         document.getElementById('applicant-name').value = applicantName;
-        document.getElementById('form-container').classList.remove('hidden');
+        
+        // 本申し込みスプレッドシートからプルダウン用お名前リストを取得
+        fetchPayeeNames();
       } else {
-        alert("認証データが確認できませんでした。最初の本人確認画面からお手続きをやり直してください。");
+        showCustomAlert("認証データが確認できませんでした。最初の本人確認画面からお手続きをやり重してください。");
       }
+    }
+
+    // バックエンドのGASから「送金先のお名前」候補一覧を動的取得
+    function fetchPayeeNames() {
+      fetch(GAS_WEB_APP_URL, {
+        method: 'POST',
+        mode: 'cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({
+          action: 'getPayeeNames'
+        })
+      })
+      .then(response => response.json())
+      .then(data => {
+        const selectElement = document.getElementById('payee-name');
+        selectElement.innerHTML = '<option value="">-- 選択してください --</option>';
+
+        if (data.status === 'success' && Array.isArray(data.names)) {
+          // 重複を除去してお名前を選択肢に追加
+          const uniqueNames = [...new Set(data.names)];
+          uniqueNames.forEach(name => {
+            if (name && name.toString().trim() !== "") {
+              const option = document.createElement('option');
+              option.value = name.trim();
+              option.textContent = name.trim();
+              selectElement.appendChild(option);
+            }
+          });
+
+          // ロード完了時に初期表示ローディングを消してフォームを表示
+          document.getElementById('init-loading').classList.add('hidden');
+          document.getElementById('form-container').classList.remove('hidden');
+        } else {
+          showCustomAlert("送金先名簿データの読み込みに失敗しました。");
+        }
+      })
+      .catch(error => {
+        console.error("名簿取得エラー:", error);
+        showCustomAlert("サーバーとの通信に失敗しました。時間をおいて再読込してください。");
+      });
     }
 
     // フォーム送信
@@ -121,12 +186,12 @@
       const paymentMethod = document.getElementById('payment-method').value;
 
       if (!applicantNameVal || !payeeName || !paymentMethod) {
-        alert("未入力の項目があります。すべての項目を入力してください。");
+        showCustomAlert("未入力の項目があります。すべての項目を入力してください。");
         return;
       }
 
       if (!lineUserId) {
-        alert("LINEのユーザー情報が取得できていません。アプリを再起動してください。");
+        showCustomAlert("LINEのユーザー情報が取得できていません。アプリを再起動してください。");
         return;
       }
 
